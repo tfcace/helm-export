@@ -6,7 +6,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"path"
@@ -16,7 +15,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
 	b64 "encoding/base64"
@@ -58,7 +56,7 @@ func (h *HelmSecret) Export(outputPath string) error {
 			continue
 		}
 		filename := fmt.Sprintf("%s.%s.%s", strings.ToLower(obj.Kind), obj.Name, "yaml")
-		ioutil.WriteFile(
+		os.WriteFile(
 			fmt.Sprintf("%s/%s", outputPath, filename),
 			[]byte(d),
 			0644,
@@ -84,17 +82,13 @@ type Retriever interface {
 }
 
 type SecretRetriever struct {
-	clientset *kubernetes.Clientset
+	clientset kubernetes.Interface
 	namespace string
 }
 
-func NewSecretRetriever(kubeconfig *rest.Config, namespace string) *SecretRetriever {
-	clientset, err := kubernetes.NewForConfig(kubeconfig)
-	if err != nil {
-		return nil
-	}
+func NewSecretRetriever(client kubernetes.Interface, namespace string) *SecretRetriever {
 	sr := SecretRetriever{
-		clientset: clientset,
+		clientset: client,
 		namespace: namespace,
 	}
 	return &sr
@@ -111,7 +105,6 @@ func (sr *SecretRetriever) Retrieve(secret string) (*HelmSecret, error) {
 }
 
 func main() {
-
 	var kubeconfig string
 	var namespace string
 	var secret string
@@ -128,7 +121,11 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	ret := NewSecretRetriever(config, namespace)
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		log.Fatal(err)
+	}
+	ret := NewSecretRetriever(clientset, namespace)
 	hs, _ := ret.Retrieve(secret)
 	outputDir, _ := os.Getwd()
 	err = hs.Export(outputDir)
