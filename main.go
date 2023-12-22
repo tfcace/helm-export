@@ -9,7 +9,6 @@ import (
 	"log"
 	"os"
 	"path"
-
 	"strings"
 
 	v1 "k8s.io/api/core/v1"
@@ -55,12 +54,12 @@ func (h *HelmSecret) Export(outputDir string) error {
 		if obj.Kind == "" {
 			continue
 		}
-		filename := fmt.Sprintf("%s.%s.%s", strings.ToLower(obj.Kind), obj.Name, "yaml")
-		os.WriteFile(
-			fmt.Sprintf("%s/%s", outputDir, filename),
-			[]byte(d),
-			0644,
-		)
+		filename := fmt.Sprintf("%s/%s.%s.%s", outputDir, strings.ToLower(obj.Kind), obj.Name, "yaml")
+		file, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE, 0644)
+		if err == nil {
+			file.Write([]byte(d))
+		}
+		defer file.Close()
 	}
 	return nil
 }
@@ -126,7 +125,7 @@ func main() {
 	if secret = flag.Arg(0); secret == "" {
 		log.Fatalln("secret is missing")
 	}
-	if outputDir := flag.Arg(1); outputDir == "" {
+	if outputDir = flag.Arg(1); outputDir == "" {
 		log.Println("Missing output directory, defaulting to the current working directory")
 		outputDir, _ = os.Getwd()
 	}
