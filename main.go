@@ -41,7 +41,7 @@ func (h *HelmSecret) Unmsrshal(payload []byte) error {
 	return nil
 }
 
-func (h *HelmSecret) Export(outputPath string) error {
+func (h *HelmSecret) Export(outputDir string) error {
 	docs := strings.Split(h.Manifest, "---")
 	for _, d := range docs {
 		if len(d) == 0 {
@@ -57,7 +57,7 @@ func (h *HelmSecret) Export(outputPath string) error {
 		}
 		filename := fmt.Sprintf("%s.%s.%s", strings.ToLower(obj.Kind), obj.Name, "yaml")
 		os.WriteFile(
-			fmt.Sprintf("%s/%s", outputPath, filename),
+			fmt.Sprintf("%s/%s", outputDir, filename),
 			[]byte(d),
 			0644,
 		)
@@ -108,15 +108,28 @@ func main() {
 	var kubeconfig string
 	var namespace string
 	var secret string
+	var outputDir string
 	flag.StringVar(&kubeconfig, "kubeconfig", defaultKubeConf(), "help message for flag kubeconfig")
 	flag.StringVar(&namespace, "n", defaultNamespace(), "help message for flag n")
+
+	// Define a custom usage message, for non-flags as well
+	flag.Usage = func() {
+		fmt.Println("Welcome to helm-export!")
+		fmt.Println("\nUsage:")
+		fmt.Printf("  %s %s %s [options]\n", os.Args[0], "secret-name", "[output-dir] (if omitted, will assume the current working direcotry)")
+		fmt.Println("\nOptions:")
+		flag.PrintDefaults()
+	}
+
 	flag.Parse()
 
 	if secret = flag.Arg(0); secret == "" {
-		fmt.Println("secret is missing")
-		os.Exit(1)
+		log.Fatalln("secret is missing")
 	}
-
+	if outputDir := flag.Arg(1); outputDir == "" {
+		log.Println("Missing output directory, defaulting to the current working directory")
+		outputDir, _ = os.Getwd()
+	}
 	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
 	if err != nil {
 		log.Fatal(err)
@@ -127,7 +140,6 @@ func main() {
 	}
 	ret := NewSecretRetriever(clientset, namespace)
 	hs, _ := ret.Retrieve(secret)
-	outputDir, _ := os.Getwd()
 	err = hs.Export(outputDir)
 	if err != nil {
 		log.Fatal(err)
